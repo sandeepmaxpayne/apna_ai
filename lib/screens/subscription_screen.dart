@@ -6,131 +6,178 @@ class SubscriptionDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ClipPath(
-        clipper: OvalDrawerClipper(),
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.7,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF4A148C), Color(0xFF7B1FA2)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return Container(
+      width: MediaQuery.of(context).size.width * 0.75,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF2E335A), Color(0xFF1C1B33)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(
+          topRight: Radius.circular(40),
+          bottomRight: Radius.circular(40),
+        ),
+      ),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Close button
+            Align(
+              alignment: Alignment.topRight,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white70, size: 28),
+                onPressed: onClose,
+              ),
             ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              child: Text(
+                "Upgrade to Pro",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                "Unlock unlimited AI chats, image generation, and priority access.",
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Subscription Cards
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
                 children: [
-                  // Close Button
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: onClose,
-                  ),
-                  const SizedBox(height: 40),
-
-                  const Text(
-                    "Choose Your Plan",
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Free Tier
-                  _buildPlanButton(
-                    title: "Free Tier",
-                    subtitle: "Basic features with limited access",
-                    color: Colors.greenAccent,
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Free plan selected")),
-                      );
-                      onClose();
-                    },
+                  _buildPlanCard(
+                    "Monthly",
+                    "\$9.99",
+                    "Billed every month",
+                    Colors.purpleAccent,
                   ),
                   const SizedBox(height: 16),
-
-                  // Pro Tier
-                  _buildPlanButton(
-                    title: "Pro Tier",
-                    subtitle: "Unlock advanced features",
-                    color: Colors.blueAccent,
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Pro plan selected")),
-                      );
-                      onClose();
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Max Tier
-                  _buildPlanButton(
-                    title: "Max Tier",
-                    subtitle: "Unlimited access with premium features",
-                    color: Colors.deepOrange,
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Max plan selected")),
-                      );
-                      onClose();
-                    },
+                  _buildPlanCard(
+                    "Yearly",
+                    "\$79.99",
+                    "Save 30% compared to monthly",
+                    Colors.tealAccent,
                   ),
                 ],
               ),
             ),
-          ),
+
+            // Google / Facebook Login Buttons
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Column(
+                children: [
+                  _socialLoginButton(
+                      Icons.g_mobiledata, "Continue with Google"),
+                  const SizedBox(height: 12),
+                  _socialLoginButton(Icons.facebook, "Continue with Facebook"),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildPlanButton({
-    required String title,
-    required String subtitle,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        minimumSize: const Size(double.infinity, 60),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+  Widget _buildPlanCard(
+      String title, String price, String subtitle, Color accent) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF6D5DF6), Color(0xFF9C7DFF)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
-      onPressed: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          Text(subtitle, style: const TextStyle(fontSize: 14)),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(subtitle,
+              style: const TextStyle(color: Colors.white70, fontSize: 14)),
+          const SizedBox(height: 12),
+          Text(price,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w600)),
+          const SizedBox(height: 16),
+
+          // CTA Button
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              gradient: LinearGradient(
+                colors: [accent.withOpacity(0.9), accent],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withOpacity(0.6),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Text("Subscribe",
+                  style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16)),
+            ),
+          ),
         ],
       ),
     );
   }
-}
 
-class OvalDrawerClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    path.lineTo(size.width - 80, 0);
-    path.quadraticBezierTo(
-        size.width, size.height / 2, size.width - 80, size.height);
-    path.lineTo(0, size.height);
-    path.close();
-    return path;
+  Widget _socialLoginButton(IconData icon, String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(30),
+        color: Colors.white.withOpacity(0.1),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.white, size: 24),
+          const SizedBox(width: 10),
+          Text(text, style: const TextStyle(color: Colors.white, fontSize: 16)),
+        ],
+      ),
+    );
   }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }

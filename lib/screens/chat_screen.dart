@@ -18,7 +18,7 @@ class _ChatScreenState extends State<ChatScreen>
   final _controller = TextEditingController();
   final List<ChatMessage> _messages = [];
 
-  bool _showDrawer = false;
+  bool _isDrawerOpen = false;
   late AnimationController _drawerController;
 
   @override
@@ -26,14 +26,20 @@ class _ChatScreenState extends State<ChatScreen>
     super.initState();
     _drawerController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 500),
     );
+  }
+
+  @override
+  void dispose() {
+    _drawerController.dispose();
+    super.dispose();
   }
 
   void _toggleDrawer() {
     setState(() {
-      _showDrawer = !_showDrawer;
-      if (_showDrawer) {
+      _isDrawerOpen = !_isDrawerOpen;
+      if (_isDrawerOpen) {
         _drawerController.forward();
       } else {
         _drawerController.reverse();
@@ -70,17 +76,8 @@ class _ChatScreenState extends State<ChatScreen>
 
     final resp = await widget.apiService.uploadImage(picked.path);
     setState(() {
-      aiMsg.text = resp.toString();
+      aiMsg.text = resp;
       aiMsg.streaming = false;
-      if (resp is List<dynamic>) {
-        aiMsg.sources = (resp as List<dynamic>).map((s) {
-          return Source(
-            title: s['title'] ?? s['url'],
-            url: s['url'] ?? '',
-            snippet: s['snippet'] ?? '',
-          );
-        }).toList();
-      }
     });
   }
 
@@ -90,22 +87,21 @@ class _ChatScreenState extends State<ChatScreen>
           ? Alignment.centerRight
           : Alignment.centerLeft,
       child: Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(12),
         margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
         decoration: BoxDecoration(
-          color:
-              msg.sender == MessageSender.user ? Colors.blue : Colors.grey[300],
-          borderRadius: BorderRadius.circular(12),
+          gradient: msg.sender == MessageSender.user
+              ? const LinearGradient(
+                  colors: [Color(0xFF6D5DF6), Color(0xFF9C7DFF)])
+              : const LinearGradient(
+                  colors: [Color(0xFF2E335A), Color(0xFF1C1B33)]),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(msg.text),
-            if (msg.sources.isNotEmpty)
-              ...msg.sources.map((s) => Text(
-                    "${s.title}: ${s.url}",
-                    style: const TextStyle(fontSize: 12, color: Colors.blue),
-                  )),
+            Text(msg.text,
+                style: const TextStyle(color: Colors.white, fontSize: 16)),
           ],
         ),
       ),
@@ -113,73 +109,93 @@ class _ChatScreenState extends State<ChatScreen>
   }
 
   @override
-  void dispose() {
-    _drawerController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const CircleAvatar(
-            backgroundColor: Colors.white,
-            child: Icon(Icons.person, color: Colors.deepPurple),
-          ),
-          onPressed: _toggleDrawer,
-        ),
-        title: const Text("Mistral Chat"),
-        backgroundColor: Colors.deepPurple,
-      ),
       body: Stack(
         children: [
-          // Chat UI
-          Column(
-            children: [
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _messages.length,
-                  itemBuilder: (_, i) => _buildMessage(_messages[i]),
+          // Subscription Drawer
+          SubscriptionDrawer(onClose: _toggleDrawer),
+
+          // Main Chat with oval animation
+          AnimatedBuilder(
+            animation: _drawerController,
+            builder: (context, child) {
+              double slide = MediaQuery.of(context).size.width *
+                  0.65 *
+                  _drawerController.value;
+              double scale = 1 - (_drawerController.value * 0.2);
+
+              return Transform(
+                transform: Matrix4.identity()
+                  ..translate(slide)
+                  ..scale(scale),
+                alignment: Alignment.center,
+                child: ClipPath(
+                  clipper: OvalRightClipper(_drawerController.value),
+                  child: child,
+                ),
+              );
+            },
+            child: Scaffold(
+              appBar: AppBar(
+                title: const Text("Mistral Chat"),
+                leading: IconButton(
+                  icon: const Icon(Icons.person, size: 28),
+                  onPressed: _toggleDrawer,
                 ),
               ),
-              Row(
+              body: Column(
                 children: [
-                  IconButton(
-                      onPressed: _sendImage, icon: const Icon(Icons.image)),
                   Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      decoration:
-                          const InputDecoration(hintText: "Type a message"),
+                    child: ListView.builder(
+                      itemCount: _messages.length,
+                      itemBuilder: (_, i) => _buildMessage(_messages[i]),
                     ),
                   ),
-                  IconButton(
-                      onPressed: _sendText, icon: const Icon(Icons.send)),
-                ],
-              )
-            ],
-          ),
-
-          // Subscription Drawer
-          if (_showDrawer)
-            AnimatedBuilder(
-              animation: _drawerController,
-              builder: (context, child) {
-                return Transform.translate(
-                  offset: Offset(
-                      -MediaQuery.of(context).size.width *
-                          (1 - _drawerController.value),
-                      0),
-                  child: Opacity(
-                    opacity: _drawerController.value,
-                    child: SubscriptionDrawer(onClose: _toggleDrawer),
+                  Row(
+                    children: [
+                      IconButton(
+                          onPressed: _sendImage, icon: const Icon(Icons.image)),
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          decoration:
+                              const InputDecoration(hintText: "Type a message"),
+                        ),
+                      ),
+                      IconButton(
+                          onPressed: _sendText, icon: const Icon(Icons.send)),
+                    ],
                   ),
-                );
-              },
+                ],
+              ),
             ),
+          ),
         ],
       ),
     );
   }
+}
+
+/// Custom clipper for oval animation
+class OvalRightClipper extends CustomClipper<Path> {
+  final double progress;
+  OvalRightClipper(this.progress);
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    double curve = 60 * progress; // oval curve
+    path.moveTo(0, 0);
+    path.lineTo(size.width - curve, 0);
+    path.quadraticBezierTo(
+        size.width, size.height / 2, size.width - curve, size.height);
+    path.lineTo(0, size.height);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(OvalRightClipper oldClipper) =>
+      oldClipper.progress != progress;
 }
