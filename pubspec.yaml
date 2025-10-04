@@ -1,0 +1,27 @@
+name: apna_ai
+description: A starter Flutter app like Perplexity AI
+publish_to: "none"
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.7.0
+  mistralai_dart: ^0.0.6
+  flutter_markdown: ^0.6.18
+  web_socket_channel: ^2.3.0
+  image_picker: ^0.8.7+5
+  url_launcher: ^6.1.10
+  firebase_core: ^2.6.0
+  firebase_auth: ^4.3.0
+  supabase_flutter: ^1.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
