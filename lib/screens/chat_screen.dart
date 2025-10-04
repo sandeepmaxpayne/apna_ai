@@ -1,3 +1,4 @@
+import 'package:apna_ai/screens/subscription_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -12,9 +13,33 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen>
+    with SingleTickerProviderStateMixin {
   final _controller = TextEditingController();
   final List<ChatMessage> _messages = [];
+
+  bool _showDrawer = false;
+  late AnimationController _drawerController;
+
+  @override
+  void initState() {
+    super.initState();
+    _drawerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+  }
+
+  void _toggleDrawer() {
+    setState(() {
+      _showDrawer = !_showDrawer;
+      if (_showDrawer) {
+        _drawerController.forward();
+      } else {
+        _drawerController.reverse();
+      }
+    });
+  }
 
   void _sendText() async {
     final text = _controller.text.trim();
@@ -45,15 +70,17 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final resp = await widget.apiService.uploadImage(picked.path);
     setState(() {
-      aiMsg.text = resp;
+      aiMsg.text = resp.toString();
       aiMsg.streaming = false;
-      aiMsg.sources = (resp as List<dynamic>).map((s) {
-        return Source(
-          title: s['title'] ?? s['url'],
-          url: s['url'] ?? '',
-          snippet: s['snippet'] ?? '',
-        );
-      }).toList();
+      if (resp is List<dynamic>) {
+        aiMsg.sources = (resp as List<dynamic>).map((s) {
+          return Source(
+            title: s['title'] ?? s['url'],
+            url: s['url'] ?? '',
+            snippet: s['snippet'] ?? '',
+          );
+        }).toList();
+      }
     });
   }
 
@@ -75,8 +102,10 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             Text(msg.text),
             if (msg.sources.isNotEmpty)
-              ...msg.sources.map((s) => Text("${s.title}: ${s.url}",
-                  style: const TextStyle(fontSize: 12, color: Colors.blue))),
+              ...msg.sources.map((s) => Text(
+                    "${s.title}: ${s.url}",
+                    style: const TextStyle(fontSize: 12, color: Colors.blue),
+                  )),
           ],
         ),
       ),
@@ -84,29 +113,71 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   @override
+  void dispose() {
+    _drawerController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Mistral Chat")),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              itemCount: _messages.length,
-              itemBuilder: (_, i) => _buildMessage(_messages[i]),
-            ),
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const CircleAvatar(
+            backgroundColor: Colors.white,
+            child: Icon(Icons.person, color: Colors.deepPurple),
           ),
-          Row(
+          onPressed: _toggleDrawer,
+        ),
+        title: const Text("Mistral Chat"),
+        backgroundColor: Colors.deepPurple,
+      ),
+      body: Stack(
+        children: [
+          // Chat UI
+          Column(
             children: [
-              IconButton(onPressed: _sendImage, icon: const Icon(Icons.image)),
               Expanded(
-                child: TextField(
-                    controller: _controller,
-                    decoration:
-                        const InputDecoration(hintText: "Type a message")),
+                child: ListView.builder(
+                  itemCount: _messages.length,
+                  itemBuilder: (_, i) => _buildMessage(_messages[i]),
+                ),
               ),
-              IconButton(onPressed: _sendText, icon: const Icon(Icons.send)),
+              Row(
+                children: [
+                  IconButton(
+                      onPressed: _sendImage, icon: const Icon(Icons.image)),
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      decoration:
+                          const InputDecoration(hintText: "Type a message"),
+                    ),
+                  ),
+                  IconButton(
+                      onPressed: _sendText, icon: const Icon(Icons.send)),
+                ],
+              )
             ],
-          )
+          ),
+
+          // Subscription Drawer
+          if (_showDrawer)
+            AnimatedBuilder(
+              animation: _drawerController,
+              builder: (context, child) {
+                return Transform.translate(
+                  offset: Offset(
+                      -MediaQuery.of(context).size.width *
+                          (1 - _drawerController.value),
+                      0),
+                  child: Opacity(
+                    opacity: _drawerController.value,
+                    child: SubscriptionDrawer(onClose: _toggleDrawer),
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );

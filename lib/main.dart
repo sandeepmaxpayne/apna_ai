@@ -1,4 +1,5 @@
 import 'package:apna_ai/screens/chat_screen.dart';
+import 'package:apna_ai/screens/login_screen.dart';
 import 'package:apna_ai/services/api_service.dart';
 import 'package:flutter/material.dart';
 
@@ -6,14 +7,34 @@ void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  String _selectedTier = "free";
+  late ApiService _apiService;
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService = ApiService("aoyjVhnWuymvHgglWQSHlAja9DOnJDKA");
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final apiService = ApiService("aoyjVhnWuymvHgglWQSHlAja9DOnJDKA");
     return MaterialApp(
-      home: ChatScreen(apiService: apiService),
+      title: 'Mistral Chat',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(primarySwatch: Colors.indigo),
+      initialRoute: '/chat',
+      routes: {
+        '/': (_) => const LoginScreen(),
+        '/chat': (_) => ChatScreen(apiService: _apiService),
+      },
     );
   }
 }

@@ -14,9 +14,11 @@ dependencies:
   web_socket_channel: ^2.3.0
   image_picker: ^0.8.7+5
   url_launcher: ^6.1.10
-  firebase_core: ^2.6.0
-  firebase_auth: ^4.3.0
   supabase_flutter: ^1.4.0
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.0
+  google_sign_in: ^6.2.1
+  flutter_facebook_auth: ^6.0.4
 
 dev_dependencies:
   flutter_test:
