@@ -13,12 +13,17 @@ dependencies:
   flutter_markdown: ^0.6.18
   web_socket_channel: ^2.3.0
   image_picker: ^0.8.7+5
-  url_launcher: ^6.1.10
   supabase_flutter: ^1.4.0
   firebase_core: ^3.6.0
   firebase_auth: ^5.3.0
   google_sign_in: ^6.2.1
   flutter_facebook_auth: ^6.0.4
+  http: ^1.2.1
+  audioplayers: ^6.0.0
+  record: ^6.1.2
+  url_launcher: ^6.3.0
+  path_provider: ^2.1.5
+  flutter_inappwebview: ^6.1.5
 
 dev_dependencies:
   flutter_test:
