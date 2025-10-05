@@ -41,7 +41,8 @@ class ApiService {
     try {
       final stream = _client.createChatCompletionStream(
         request: ChatCompletionRequest(
-          model: ChatCompletionModel.model(ChatCompletionModels.mistralMedium),
+          model: const ChatCompletionModel.model(
+              ChatCompletionModels.mistralMedium),
           temperature: 0,
           messages: [
             ChatCompletionMessage(

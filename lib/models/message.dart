@@ -8,16 +8,18 @@ class Source {
   Source({required this.title, required this.url, required this.snippet});
 }
 
-class Message {
-  String text;
+class ChatMessage {
   final MessageSender sender;
-  final List<Source> sources;
-  bool streaming; // whether this message is being streamed (partial content)
+  String text;
+  bool streaming;
+  bool isTired;
+  bool rechargeRequested;
 
-  Message({
-    required this.text,
+  ChatMessage({
     required this.sender,
-    this.sources = const [],
+    required this.text,
     this.streaming = false,
+    this.isTired = false,
+    this.rechargeRequested = false,
   });
 }

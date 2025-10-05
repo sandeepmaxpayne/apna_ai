@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class MusicService {
-  final String apiKey = "YOUR_AUDD_API_KEY"; // Get from audd.io
+  final String apiKey = ""; // Get from audd.io
 
   Future<Map<String, dynamic>?> recognizeSong(File file) async {
     final request = http.MultipartRequest(
