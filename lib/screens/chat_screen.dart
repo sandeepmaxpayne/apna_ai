@@ -9,23 +9,18 @@ import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/message.dart';
+import '../models/theme_color.dart';
 import '../services/api_service.dart';
 import '../services/music_service.dart';
+import '../widgets/animated_typing_dot.dart';
+import '../widgets/bottom_taskbar.dart';
 import '../widgets/inline_link_row.dart';
+import '../widgets/ovalRight_clipper.dart';
 import '../widgets/tired_bot_animation.dart';
-
-// --- THEME COLORS ---
-const Color _kPrimaryColor = Color(0xFF6B4EEA);
-const Color _kBackgroundColor = Color(0xFFF3EFFF);
-const Color _kInputFillColor = Color(0xFFD9CCFF);
-const Color _kAIChatBubbleStart = Color(0xFFEBE3FF);
-const Color _kAIChatBubbleEnd = Color(0xFFD9CCFF);
-const Color _kUserChatBubbleColor = Color(0xFFF0F0F0);
 
 class ChatScreen extends StatefulWidget {
   final ApiService apiService;
   const ChatScreen({super.key, required this.apiService});
-
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
@@ -35,11 +30,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final List<ChatMessage> _messages = [];
   final _record = AudioRecorder();
   final _musicService = MusicService();
-
+  bool _hasError = false;
+  bool _isStreaming = false;
+  bool _stopRequested = false;
+  late AnimationController _pulseController;
+  late AnimationController _morphController;
   bool _isDrawerOpen = false;
   bool _isTyping = false;
   late AnimationController _drawerController;
   late AnimationController _wobbleController;
+  late AnimationController _taskbarController;
+  int _selectedTab = 0;
 
   @override
   void initState() {
@@ -50,22 +51,33 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     )..addListener(() {
         setState(() {});
       });
-
-    // Create wobble controller but DO NOT start it automatically.
-    // We'll call _wobbleController.repeat(...) only when a msg becomes tired.
     _wobbleController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
       lowerBound: -0.05,
       upperBound: 0.05,
     );
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+    _morphController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _taskbarController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+      value: 1, // visible initially
+    );
   }
 
   @override
   void dispose() {
     _drawerController.dispose();
-    // DO NOT call _record.dispose() — Record doesn't expose dispose. Stop if recording.
     _wobbleController.dispose();
+    _pulseController.dispose();
+    _morphController.dispose();
     super.dispose();
   }
 
@@ -141,7 +153,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     }
   }
 
-  /// 🎵 Music Recognition
   Future<void> _startMusicRecognition() async {
     try {
       if (!await _record.hasPermission()) {
@@ -157,11 +168,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       final dir = await getTemporaryDirectory();
       final path = '${dir.path}/recorded_song.m4a';
 
-      // start recording (Record package signatures vary; this is a common usage)
-      await _record.start(
-        const RecordConfig(),
-        path: path,
-      );
+      await _record.start(const RecordConfig(), path: path);
 
       setState(() {
         _messages.add(ChatMessage(
@@ -220,33 +227,47 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     }
   }
 
-  /// 🧠 Send Text
+  void _stopResponse() {
+    setState(() {
+      _stopRequested = true;
+      _isStreaming = false;
+    });
+    _pulseController.stop();
+    _morphController.reverse();
+  }
+
   void _sendText() async {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isStreaming) return;
 
     final userMsg = ChatMessage(sender: MessageSender.user, text: text);
-    setState(() => _messages.add(userMsg));
-    _controller.clear();
+    setState(() {
+      _messages.add(userMsg);
+      _controller.clear();
+      _isTyping = true;
+      _hasError = false;
+      _isStreaming = true;
+      _stopRequested = false;
+    });
 
     final aiMsg =
         ChatMessage(sender: MessageSender.ai, text: "", streaming: true);
-    setState(() {
-      _messages.add(aiMsg);
-      _isTyping = true;
-    });
+    setState(() => _messages.add(aiMsg));
 
     try {
       await for (final chunk in widget.apiService.streamQuery(text)) {
+        if (_stopRequested) break;
+
         if (chunk.toLowerCase().contains("streaming unavailable") ||
             chunk.toLowerCase().contains("error") ||
             chunk.toLowerCase().contains("json")) {
           setState(() {
             aiMsg.text =
                 "🤖 *Bot is a little tired right now… please try again in a moment!* 😴";
-            aiMsg.isTired = true; // ⚡ mark bot as tired
+            aiMsg.isTired = true;
+            _hasError = true;
             if (!_wobbleController.isAnimating) {
-              _wobbleController.repeat(reverse: true); // start wobble
+              _wobbleController.repeat(reverse: true);
             }
           });
           break;
@@ -258,20 +279,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       setState(() {
         aiMsg.text =
             "🤖 *Bot is feeling a bit broken right now.* Please try again later 🛠️";
-        aiMsg.isTired = true; // ⚡ mark bot as tired
+        aiMsg.isTired = true;
+        _hasError = true;
         if (!_wobbleController.isAnimating) {
-          _wobbleController.repeat(reverse: true); // start wobble
+          _wobbleController.repeat(reverse: true);
         }
       });
     } finally {
       setState(() {
         aiMsg.streaming = false;
         _isTyping = false;
+        _isStreaming = false;
       });
     }
   }
 
-  /// 🖼️ Send Image
   void _sendImage() async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery);
@@ -290,13 +312,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     });
   }
 
-  /// 💬 Build message bubble with robot, gradient & links
   Widget _buildMessage(ChatMessage msg) {
     final urls = extractUrlsFromMessage(msg.text);
     final isUser = msg.sender == MessageSender.user;
 
     if (isUser) {
-      // User bubble remains same
       return Align(
         alignment: Alignment.centerRight,
         child: Container(
@@ -305,7 +325,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           padding: const EdgeInsets.all(12),
           margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
           decoration: BoxDecoration(
-            color: _kUserChatBubbleColor,
+            color: AppColors.userBubble,
             borderRadius: BorderRadius.circular(20).copyWith(
               topRight: const Radius.circular(5),
               bottomRight: const Radius.circular(20),
@@ -323,7 +343,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         ),
       );
     } else {
-      // AI bubble
       return Align(
         alignment: Alignment.centerLeft,
         child: Column(
@@ -336,7 +355,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [_kAIChatBubbleStart, _kAIChatBubbleEnd],
+                  colors: [AppColors.accent, AppColors.inputFill],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
@@ -364,7 +383,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) =>
                                       const Icon(Icons.smart_toy,
-                                          color: _kPrimaryColor, size: 24),
+                                          color: AppColors.primary, size: 24),
                                 ),
                         ),
                       ),
@@ -380,13 +399,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                               bottomLeft: const Radius.circular(16),
                             ),
                           ),
-                          child: const Text(
-                            "Thinking...",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: Colors.black54,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 400),
+                            transitionBuilder: (child, anim) => FadeTransition(
+                              opacity: anim,
+                              child: ScaleTransition(scale: anim, child: child),
                             ),
+                            child: _isStreaming
+                                ? const AnimatedThinkingText(
+                                    key: ValueKey('thinking_text'))
+                                : const SizedBox.shrink(
+                                    key: ValueKey('empty_space')),
                           ),
                         ),
                     ],
@@ -408,14 +431,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     const SizedBox(height: 6),
                     InlineLinkRow(urls: urls),
                   ],
-                  // 👇 Recharge button if tired
                   if (msg.isTired)
                     Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       child: Row(
                         children: [
-                          // 👇 Animated robot icon wobbling (small)
                           AnimatedBuilder(
                             animation: _wobbleController,
                             builder: (context, child) {
@@ -433,7 +454,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                                     Border.all(color: Colors.white, width: 2),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: _kPrimaryColor.withOpacity(0.3),
+                                    color: AppColors.primary.withOpacity(0.3),
                                     blurRadius: 6,
                                     offset: const Offset(0, 3),
                                   )
@@ -446,7 +467,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                                   errorBuilder: (context, error, stackTrace) =>
                                       const Icon(
                                     Icons.smart_toy,
-                                    color: _kPrimaryColor,
+                                    color: AppColors.primary,
                                     size: 26,
                                   ),
                                 ),
@@ -467,8 +488,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-
-                                // ⚡ Recharge Button (with spinner)
                                 ElevatedButton.icon(
                                   onPressed: msg.rechargeRequested
                                       ? null
@@ -491,7 +510,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                                     style: const TextStyle(color: Colors.white),
                                   ),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF6B4EEA),
+                                    backgroundColor: AppColors.primary,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(20),
                                     ),
@@ -519,34 +538,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     return urlRegex.allMatches(text).map((m) => m.group(0)!).toList();
   }
 
-  /// ✨ Typing indicator
-  Widget _typingIndicator() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: List.generate(
-          3,
-          (i) => AnimatedContainer(
-            duration: Duration(milliseconds: 300 + (i * 100)),
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            height: 8,
-            width: 8,
-            decoration: const BoxDecoration(
-              color: Colors.black26,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  bool get _isKeyboardVisible => MediaQuery.of(context).viewInsets.bottom > 50;
 
   /// 🏗 Build UI
   @override
   Widget build(BuildContext context) {
+    // Animate taskbar visibility
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_isKeyboardVisible) {
+        _taskbarController.reverse();
+      } else {
+        _taskbarController.forward();
+      }
+    });
     return Scaffold(
-      backgroundColor: _kBackgroundColor,
+      backgroundColor: AppColors.background,
       body: Stack(
         children: [
           SubscriptionDrawer(onClose: _toggleDrawer),
@@ -566,7 +572,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 child: ClipPath(
                   clipper: OvalRightClipper(_drawerController.value),
                   child: Scaffold(
-                    backgroundColor: _kBackgroundColor,
+                    backgroundColor: AppColors.background,
                     appBar: AppBar(
                       backgroundColor: Colors.transparent,
                       elevation: 0,
@@ -584,73 +590,206 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       ),
                     ),
                     body: SafeArea(
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: ListView.builder(
-                              reverse: true,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              itemCount: _messages.length + (_isTyping ? 1 : 0),
-                              itemBuilder: (_, i) {
-                                final index = _messages.length - 1 - i;
-                                if (index >= 0) {
-                                  return _buildMessage(_messages[index]);
-                                } else {
-                                  return _typingIndicator();
-                                }
-                              },
-                            ),
-                          ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 0),
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: ListView.builder(
+                                reverse: true,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                                itemCount:
+                                    _messages.length + (_isStreaming ? 1 : 0),
+                                itemBuilder: (context, index) {
+                                  if (_isStreaming &&
+                                      index == _messages.length) {
+                                    // Streaming "Thinking..." bubble
+                                    return Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          margin: const EdgeInsets.only(
+                                              left: 10, right: 8, top: 6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.deepPurple.shade100,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          padding: const EdgeInsets.all(8),
+                                          child: const Icon(Icons.smart_toy,
+                                              color: Colors.deepPurple,
+                                              size: 22),
+                                        ),
+                                        Container(
+                                          margin: const EdgeInsets.symmetric(
+                                              vertical: 6),
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 14, vertical: 10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black
+                                                    .withOpacity(0.05),
+                                                blurRadius: 4,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: const AnimatedThinkingText(),
+                                        ),
+                                      ],
+                                    );
+                                  }
 
-                          // ---- INPUT FIELD WITH MUSIC & SEND ----
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Container(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              decoration: BoxDecoration(
-                                color: _kInputFillColor,
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                              child: Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.camera,
-                                      color: _kPrimaryColor,
-                                    ),
-                                    onPressed: _sendImage,
-                                  ),
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _controller,
-                                      decoration: const InputDecoration(
-                                        hintText: "Ask me anything?",
-                                        border: InputBorder.none,
-                                      ),
-                                      onSubmitted: (_) => _sendText(),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.music_note,
-                                      color: _kPrimaryColor,
-                                    ),
-                                    onPressed: _startMusicRecognition,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.arrow_upward,
-                                      color: _kPrimaryColor,
-                                    ),
-                                    onPressed: _sendText,
-                                  ),
-                                ],
+                                  final reversedIndex =
+                                      _messages.length - 1 - index;
+                                  return _buildMessage(
+                                      _messages[reversedIndex]);
+                                },
                               ),
                             ),
-                          ),
-                        ],
+                            // ---- INPUT FIELD WITH MUSIC & SEND ----
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 500),
+                              switchInCurve: Curves.elasticOut,
+                              switchOutCurve: Curves.easeInBack,
+                              transitionBuilder: (child, anim) {
+                                return ScaleTransition(
+                                  scale: Tween<double>(begin: 0.6, end: 1.0)
+                                      .animate(anim),
+                                  child: FadeTransition(
+                                      opacity: anim, child: child),
+                                );
+                              },
+                              child: _isStreaming
+                                  ? Padding(
+                                      key: const ValueKey('stop_button'),
+                                      padding: const EdgeInsets.all(16),
+                                      child: Center(
+                                        child: AnimatedBuilder(
+                                          animation: Listenable.merge([
+                                            _pulseController,
+                                            _morphController
+                                          ]),
+                                          builder: (_, __) {
+                                            final scale = 1 +
+                                                0.1 * _pulseController.value;
+                                            return Transform.scale(
+                                              scale: scale,
+                                              child: IconButton(
+                                                iconSize: 72,
+                                                tooltip: "Stop Generating",
+                                                icon: Container(
+                                                  padding:
+                                                      const EdgeInsets.all(20),
+                                                  decoration: BoxDecoration(
+                                                    color: Color.lerp(
+                                                        AppColors.primary,
+                                                        Colors.pinkAccent,
+                                                        _morphController.value),
+                                                    shape: BoxShape.circle,
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.redAccent
+                                                            .withOpacity(0.5),
+                                                        blurRadius: 25,
+                                                        spreadRadius: 4,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.stop_rounded,
+                                                    color: AppColors.secondary,
+                                                    size: 36,
+                                                  ),
+                                                ),
+                                                onPressed: _stopResponse,
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    )
+                                  : Padding(
+                                      key: const ValueKey('input_bar'),
+                                      padding: const EdgeInsets.all(16),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 16),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.secondary,
+                                          borderRadius:
+                                              BorderRadius.circular(30),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            IconButton(
+                                              icon: const Icon(Icons.camera_alt,
+                                                  color: AppColors.primary),
+                                              onPressed:
+                                                  _hasError || _isStreaming
+                                                      ? null
+                                                      : _sendImage,
+                                            ),
+                                            Expanded(
+                                              child: TextField(
+                                                controller: _controller,
+                                                enabled: !_hasError,
+                                                decoration: InputDecoration(
+                                                  hintText: _hasError
+                                                      ? "⚠️ Bot error — try recharging..."
+                                                      : "Ask me anything...",
+                                                  border: InputBorder.none,
+                                                ),
+                                                onSubmitted: (_) => _sendText(),
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.music_note,
+                                                  color: AppColors.primary),
+                                              onPressed:
+                                                  _hasError || _isStreaming
+                                                      ? null
+                                                      : _startMusicRecognition,
+                                            ),
+                                            AnimatedBuilder(
+                                              animation: _morphController,
+                                              builder: (context, child) {
+                                                final color = Color.lerp(
+                                                    AppColors.primary,
+                                                    Colors.pinkAccent,
+                                                    _morphController.value);
+                                                final icon =
+                                                    _morphController.value > 0.5
+                                                        ? Icons.stop_rounded
+                                                        : Icons.send_rounded;
+                                                return IconButton(
+                                                  icon: Icon(icon,
+                                                      color: color, size: 30),
+                                                  onPressed: _hasError
+                                                      ? null
+                                                      : _isStreaming
+                                                          ? _stopResponse
+                                                          : _sendText,
+                                                );
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        ),
                       ),
+                    ),
+                    bottomNavigationBar: AnimatedBuilder(
+                      animation: _taskbarController,
+                      builder: (context, _) => const BuildBottomTaskbar(),
                     ),
                   ),
                 ),
@@ -661,27 +800,4 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       ),
     );
   }
-}
-
-/// Oval Drawer Animation
-class OvalRightClipper extends CustomClipper<Path> {
-  final double progress;
-  OvalRightClipper(this.progress);
-
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    double curve = 60 * progress;
-    path.moveTo(0, 0);
-    path.lineTo(size.width - curve, 0);
-    path.quadraticBezierTo(
-        size.width, size.height / 2, size.width - curve, size.height);
-    path.lineTo(0, size.height);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(OvalRightClipper oldClipper) =>
-      oldClipper.progress != progress;
 }

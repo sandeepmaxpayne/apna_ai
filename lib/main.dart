@@ -1,3 +1,4 @@
+import 'package:apna_ai/models/theme_color.dart';
 import 'package:apna_ai/screens/chat_screen.dart';
 import 'package:apna_ai/screens/login_screen.dart';
 import 'package:apna_ai/services/api_service.dart';
@@ -32,7 +33,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       title: 'Mistral Chat',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(primarySwatch: Colors.indigo),
+      theme: AppTheme.lightTheme,
       navigatorKey: navigatorKey,
       initialRoute: '/chat',
       routes: {
