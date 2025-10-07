@@ -13,7 +13,6 @@ import '../models/theme_color.dart';
 import '../services/api_service.dart';
 import '../services/music_service.dart';
 import '../widgets/animated_typing_dot.dart';
-import '../widgets/bottom_taskbar.dart';
 import '../widgets/inline_link_row.dart';
 import '../widgets/ovalRight_clipper.dart';
 import '../widgets/tired_bot_animation.dart';
@@ -40,7 +39,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   late AnimationController _drawerController;
   late AnimationController _wobbleController;
   late AnimationController _taskbarController;
-  int _selectedTab = 0;
 
   @override
   void initState() {
@@ -81,15 +79,32 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  void _toggleDrawer() {
-    setState(() {
-      _isDrawerOpen = !_isDrawerOpen;
-      if (_isDrawerOpen) {
-        _drawerController.forward();
-      } else {
-        _drawerController.reverse();
-      }
-    });
+  void _toggleDrawer() async {
+    await Navigator.of(context).push(PageRouteBuilder(
+      transitionDuration: const Duration(milliseconds: 600),
+      reverseTransitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          SubscriptionDrawer(
+        onClose: () => Navigator.of(context).pop(),
+      ),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        final slide = Tween<Offset>(
+          begin: const Offset(0, 1), // slide up from bottom
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        ));
+        final fade = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeInOut,
+        );
+        return SlideTransition(
+          position: slide,
+          child: FadeTransition(opacity: fade, child: child),
+        );
+      },
+    ));
   }
 
   Future<void> _rechargeBot(ChatMessage msg) async {
@@ -786,10 +801,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                           ],
                         ),
                       ),
-                    ),
-                    bottomNavigationBar: AnimatedBuilder(
-                      animation: _taskbarController,
-                      builder: (context, _) => const BuildBottomTaskbar(),
                     ),
                   ),
                 ),

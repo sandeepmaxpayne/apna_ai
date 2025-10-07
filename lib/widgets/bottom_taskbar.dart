@@ -1,7 +1,15 @@
+import 'package:apna_ai/models/theme_color.dart';
 import 'package:flutter/material.dart';
 
 class BuildBottomTaskbar extends StatefulWidget {
-  const BuildBottomTaskbar({super.key});
+  final String currentRoute;
+  final ValueChanged<String> onTabSelected;
+
+  const BuildBottomTaskbar({
+    super.key,
+    required this.currentRoute,
+    required this.onTabSelected,
+  });
 
   @override
   State<BuildBottomTaskbar> createState() => _BuildBottomTaskbarState();
@@ -9,8 +17,18 @@ class BuildBottomTaskbar extends StatefulWidget {
 
 class _BuildBottomTaskbarState extends State<BuildBottomTaskbar>
     with TickerProviderStateMixin {
-  int _selectedTab = 0;
   late AnimationController _taskbarController;
+
+  final List<Map<String, dynamic>> _tabs = [
+    {'icon': Icons.chat_bubble_outline, 'label': 'Chat', 'route': '/chat'},
+    {'icon': Icons.explore_outlined, 'label': 'Discover', 'route': '/discover'},
+    {'icon': Icons.groups_2_outlined, 'label': 'Spaces', 'route': '/spaces'},
+    {
+      'icon': Icons.library_books_outlined,
+      'label': 'Library',
+      'route': '/library'
+    },
+  ];
 
   @override
   void initState() {
@@ -18,19 +36,18 @@ class _BuildBottomTaskbarState extends State<BuildBottomTaskbar>
     _taskbarController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
-      value: 1, // visible initially
+      value: 1,
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final items = [
-      {'icon': Icons.chat_bubble_outline, 'label': 'Chat'},
-      {'icon': Icons.explore_outlined, 'label': 'Discover'},
-      {'icon': Icons.groups_2_outlined, 'label': 'Spaces'},
-      {'icon': Icons.library_books_outlined, 'label': 'Library'},
-    ];
+  void dispose() {
+    _taskbarController.dispose();
+    super.dispose();
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return FadeTransition(
       opacity: _taskbarController,
       child: SlideTransition(
@@ -56,22 +73,19 @@ class _BuildBottomTaskbarState extends State<BuildBottomTaskbar>
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(items.length, (index) {
-              final isActive = _selectedTab == index;
+            children: List.generate(_tabs.length, (index) {
+              final tab = _tabs[index];
+              final isActive = widget.currentRoute == tab['route'];
+
               return GestureDetector(
-                onTap: () {
-                  setState(() => _selectedTab = index);
-                },
+                onTap: () => widget.onTabSelected(tab['route'] as String),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
+                  duration: const Duration(milliseconds: 200),
                   curve: Curves.easeInOut,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isActive
-                        ? Colors.blue.withOpacity(
-                            0.12) // Replace with AppColors.primary if defined
-                        : Colors.transparent,
+                    color: Colors.transparent, // ⬅ removed highlight background
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Column(
@@ -81,8 +95,8 @@ class _BuildBottomTaskbarState extends State<BuildBottomTaskbar>
                         scale: isActive ? 1.2 : 1.0,
                         duration: const Duration(milliseconds: 200),
                         child: Icon(
-                          items[index]['icon'] as IconData,
-                          color: isActive ? Colors.blue : Colors.grey,
+                          tab['icon'] as IconData,
+                          color: isActive ? AppColors.primary : Colors.grey,
                           size: 26,
                         ),
                       ),
@@ -90,12 +104,12 @@ class _BuildBottomTaskbarState extends State<BuildBottomTaskbar>
                       AnimatedDefaultTextStyle(
                         duration: const Duration(milliseconds: 250),
                         style: TextStyle(
-                          color: isActive ? Colors.blue : Colors.grey,
+                          color: isActive ? AppColors.primary : Colors.grey,
                           fontSize: isActive ? 13 : 12,
                           fontWeight:
                               isActive ? FontWeight.w600 : FontWeight.w400,
                         ),
-                        child: Text(items[index]['label'] as String),
+                        child: Text(tab['label'] as String),
                       ),
                     ],
                   ),
