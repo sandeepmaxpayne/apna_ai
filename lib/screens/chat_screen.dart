@@ -8,6 +8,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../database/chat_database.dart';
+import '../models/chat_session.dart';
 import '../models/message.dart';
 import '../models/theme_color.dart';
 import '../services/api_service.dart';
@@ -16,10 +18,17 @@ import '../widgets/animated_typing_dot.dart';
 import '../widgets/inline_link_row.dart';
 import '../widgets/ovalRight_clipper.dart';
 import '../widgets/tired_bot_animation.dart';
+import 'library_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   final ApiService apiService;
-  const ChatScreen({super.key, required this.apiService});
+  final bool startNewSession;
+  final ChatSession? previousSession;
+  const ChatScreen(
+      {super.key,
+      required this.apiService,
+      this.startNewSession = false,
+      this.previousSession});
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
@@ -39,6 +48,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   late AnimationController _drawerController;
   late AnimationController _wobbleController;
   late AnimationController _taskbarController;
+  ChatSession? _currentSession;
 
   @override
   void initState() {
@@ -68,6 +78,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 300),
       value: 1, // visible initially
     );
+    _initSession().then((_) {
+      if (_currentSession != null) {
+        _messages.add(ChatMessage(
+            sender: MessageSender.ai, text: _currentSession!.message));
+      }
+    });
   }
 
   @override
@@ -77,6 +93,32 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _pulseController.dispose();
     _morphController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initSession() async {
+    if (widget.startNewSession) {
+      _currentSession = null;
+    } else if (widget.previousSession != null) {
+      _currentSession = widget.previousSession;
+    } else {
+      _currentSession = await ChatDatabase.instance.getLatestSession();
+    }
+    if (_currentSession != null) {
+      // Populate last chat’s content as AI message
+      _messages.add(ChatMessage(
+        sender: MessageSender.ai,
+        text: _currentSession!.message,
+      ));
+    }
+  }
+
+  Future<void> saveChatToLibrary(String userMessage, String botResponse) async {
+    final session = ChatSession(
+      title: userMessage,
+      message: botResponse,
+      timestamp: DateTime.now().toIso8601String(),
+    );
+    await ChatDatabase.instance.insertSession(session);
   }
 
   void _toggleDrawer() async {
@@ -306,6 +348,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         _isTyping = false;
         _isStreaming = false;
       });
+      if (_messages.isNotEmpty) {
+        final userMsg =
+            _messages.lastWhere((m) => m.sender == MessageSender.user);
+        final aiMsg = _messages.lastWhere((m) => m.sender == MessageSender.ai);
+
+        if (userMsg.text.isNotEmpty && aiMsg.text.isNotEmpty) {
+          saveChatToLibrary(userMsg.text, aiMsg.text);
+        }
+      }
     }
   }
 
@@ -603,6 +654,38 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                         icon: const Icon(Icons.menu, color: Colors.black),
                         onPressed: _toggleDrawer,
                       ),
+                      actions: [
+                        IconButton(
+                          icon: const Icon(Icons.library_books_outlined,
+                              color: Colors.black),
+                          tooltip: "Library",
+                          onPressed: () async {
+                            await Navigator.of(context).pushReplacement(
+                              PageRouteBuilder(
+                                transitionDuration:
+                                    const Duration(milliseconds: 500),
+                                pageBuilder: (_, animation, __) =>
+                                    LibraryScreen(
+                                        apiService: widget.apiService),
+                                transitionsBuilder: (_, animation, __, child) {
+                                  return SlideTransition(
+                                    position: Tween(
+                                            begin: const Offset(0, 1),
+                                            end: Offset.zero)
+                                        .animate(CurvedAnimation(
+                                            parent: animation,
+                                            curve: Curves.easeOut)),
+                                    child: FadeTransition(
+                                      opacity: animation,
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
                     body: SafeArea(
                       child: Padding(

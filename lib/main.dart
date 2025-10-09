@@ -1,7 +1,7 @@
 import 'package:apna_ai/models/theme_color.dart';
 import 'package:apna_ai/screens/chat_screen.dart';
 import 'package:apna_ai/screens/discover_page.dart';
-import 'package:apna_ai/screens/library_page.dart';
+import 'package:apna_ai/screens/library_screen.dart';
 import 'package:apna_ai/screens/specs_page.dart';
 import 'package:apna_ai/services/api_service.dart';
 import 'package:apna_ai/widgets/bottom_taskbar.dart';
@@ -43,6 +43,17 @@ class _MyAppState extends State<MyApp> {
       title: 'Mistral Chat',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.transparent,
+          //Color(0xFFF3EFFF), // pastel purple or match your theme
+          elevation: 0,
+          iconTheme: IconThemeData(color: Colors.black),
+          titleTextStyle: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
         scaffoldBackgroundColor: AppColors.background,
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
       ),
@@ -79,11 +90,12 @@ class _MyAppState extends State<MyApp> {
   Widget _buildTabContent() {
     switch (_selectedTab) {
       case '/discover':
-        return const DiscoverPage(key: ValueKey('discover'));
+        return const DiscoverScreen(key: ValueKey('discover'));
       case '/spaces':
         return const SpacesPage(key: ValueKey('spaces'));
       case '/library':
-        return const LibraryPage(key: ValueKey('library'));
+        return LibraryScreen(
+            key: const ValueKey('library'), apiService: _apiService);
       default:
         return ChatScreen(
           key: const ValueKey('chat'),
