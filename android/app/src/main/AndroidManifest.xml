@@ -45,6 +45,7 @@
 
     <!-- Flutter text processing queries -->
     <queries>
+        <package android:name="com.google.android.apps.nbu.paisa.user" /> <!-- GPay -->
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />

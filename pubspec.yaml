@@ -18,7 +18,6 @@ dependencies:
   firebase_auth: ^5.3.0
   google_sign_in: ^6.2.1
   flutter_facebook_auth: ^6.0.4
-  http: ^1.2.1
   audioplayers: ^6.0.0
   record: ^6.1.2
   url_launcher: ^6.3.0
@@ -26,6 +25,13 @@ dependencies:
   flutter_inappwebview: ^6.1.5
   metadata_fetch: ^0.4.2
   sqflite: ^2.4.2
+  flutter_animate: ^4.5.2
+  shared_preferences: ^2.5.3
+  razorpay_flutter: ^1.4.0
+  flutter_stripe: ^12.0.2
+  upi_india: ^3.0.1       # Google Pay, PhonePe, etc.
+  http: ^1.5.0            # For PayPal API
+  lottie: ^3.3.2
 
 dev_dependencies:
   flutter_test:
@@ -36,3 +42,5 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/animations/payment_success.json
+    - assets/animations/payment_failed.json
