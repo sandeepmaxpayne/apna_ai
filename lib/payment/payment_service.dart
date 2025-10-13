@@ -1,94 +1,190 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
-import 'package:upi_india/upi_india.dart';
 import 'package:http/http.dart' as http;
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class PaymentService {
+  static final PaymentService _instance = PaymentService._internal();
+  factory PaymentService() => _instance;
+  PaymentService._internal();
+
   Razorpay? _razorpay;
 
+  // ==================== INIT & DISPOSE ====================
+
   void initRazorpay({
-    required Function(String) onSuccess,
-    required Function(String) onError,
+    required VoidCallback onSuccess,
+    required VoidCallback onFailure,
   }) {
     _razorpay = Razorpay();
+
     _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS,
-            (PaymentSuccessResponse res) => onSuccess(res.paymentId ?? ''));
+        (PaymentSuccessResponse response) => onSuccess());
     _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR,
-            (PaymentFailureResponse res) => onError(res.message ?? 'Error'));
+        (PaymentFailureResponse response) => onFailure());
   }
 
-  void disposeRazorpay() => _razorpay?.clear();
+  void disposeRazorpay() {
+    _razorpay?.clear();
+  }
 
-  Future<void> startRazorpay({
-    required String name,
+  // ==================== STRIPE PAYMENT ====================
+
+  Future<void> startStripePayment({
+    required String planName,
+    required String amount,
+    required BuildContext context,
+  }) async {
+    try {
+      // Step 1: Create PaymentIntent on your backend
+      final response = await http.post(
+        Uri.parse("https://your-backend.com/create-payment-intent"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "amount": amount,
+          "currency": "inr",
+          "plan": planName,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      if (data['clientSecret'] == null)
+        throw Exception('Invalid payment intent');
+
+      // Step 2: Initialize payment sheet
+      await Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: SetupPaymentSheetParameters(
+          paymentIntentClientSecret: data['clientSecret'],
+          merchantDisplayName: 'Apna AI',
+        ),
+      );
+
+      // Step 3: Present payment sheet
+      await Stripe.instance.presentPaymentSheet();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("✅ Payment Successful via Stripe")),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Stripe Payment Failed: $e")),
+      );
+    }
+  }
+
+  // ==================== RAZORPAY PAYMENT ====================
+
+  void startRazorpayPayment({
+    required String planName,
     required double amount,
     required String email,
-  }) async {
+  }) {
     var options = {
-      'key': 'rzp_test_xxxxxxxx', // replace with your Razorpay key
+      'key': 'rzp_test_yourKeyHere',
       'amount': (amount * 100).toInt(),
-      'name': name,
-      'description': 'SkillSwap Offer Payment',
+      'name': 'Apna AI',
+      'description': planName,
       'prefill': {'contact': '', 'email': email},
-      'theme': {'color': '#0A657E'}
     };
-    _razorpay!.open(options);
+
+    try {
+      _razorpay?.open(options);
+    } catch (e) {
+      debugPrint('Error: $e');
+    }
   }
 
-  // ---------------- Stripe ---------------
-  Future<void> startStripePayment({
+  // ==================== PAYPAL PAYMENT ====================
+
+  Future<void> startPayPalPayment({
     required String amount,
     required String currency,
   }) async {
-    // backend should create PaymentIntent; below is demo only
-    Stripe.publishableKey = "pk_test_XXXXXXX";
-    await Stripe.instance.initPaymentSheet(
-      paymentSheetParameters: SetupPaymentSheetParameters(
-        merchantDisplayName: 'SkillSwap',
-        style: ThemeMode.light,
-        appearance: const PaymentSheetAppearance(),
+    final url = Uri.parse(
+        "https://www.sandbox.paypal.com/cgi-bin/webscr?cmd=_xclick&business=youremail@example.com&currency_code=$currency&amount=$amount");
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  // ==================== GOOGLE PAY ====================
+
+  Future<void> startGooglePay({
+    required String amount,
+    required BuildContext context,
+  }) async {
+    final gpayUrl =
+        'upi://pay?pa=yourupi@okaxis&pn=ApnaAI&am=$amount&cu=INR&tn=GooglePay%20Subscription';
+    if (await canLaunchUrl(Uri.parse(gpayUrl))) {
+      await launchUrl(Uri.parse(gpayUrl), mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Google Pay not available")),
+      );
+    }
+  }
+
+  // ==================== APPLE PAY ====================
+/*
+  Future<void> startApplePay({
+    required String amount,
+    required BuildContext context,
+  }) async {
+    try {
+      await Stripe.instance.presentApplePay(
+        params: ApplePayPresentParams(
+          cartItems: [
+            ApplePayCartSummaryItem(label: 'Apna AI Subscription', amount: amount)
+          ],
+          country: 'IN',
+          currency: 'INR',
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Apple Pay failed: $e")),
+      );
+    }
+  }
+*/
+  // ==================== UPI PAYMENT ====================
+
+  Future<void> startUPIPayment({
+    required String upiId,
+    required String name,
+    required String amount,
+    String note = "Subscription Payment",
+  }) async {
+    final url = "upi://pay?pa=$upiId&pn=$name&am=$amount&cu=INR&tn=$note";
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    }
+  }
+
+  // ==================== TEST PAYMENT ====================
+
+  Future<void> startTestPayment({
+    required BuildContext context,
+    String planName = "Pro Plan",
+    String amount = "0.00",
+  }) async {
+    await Future.delayed(const Duration(seconds: 1)); // simulate network delay
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          "🧪 Test payment completed for $planName (Amount: ₹$amount)",
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
       ),
     );
-    await Stripe.instance.presentPaymentSheet();
-  }
 
-  // ---------------- Google Pay (UPI) ---------------
-  Future<void> startUpiPayment({
-    required double amount,
-    required String receiverUpiId,
-    required String name,
-  }) async {
-    UpiIndia upiIndia = UpiIndia();
-    await upiIndia.startTransaction(
-      app: UpiApp.googlePay,
-      receiverUpiId: receiverUpiId,
-      receiverName: name,
-      transactionRefId: "SS${DateTime.now().millisecondsSinceEpoch}",
-      transactionNote: "SkillSwap Premium",
-      amount: amount,
-    );
-  }
-
-  // ---------------- PayPal ----------------
-  Future<void> startPayPal({
-    required String clientId,
-    required String secret,
-    required double amount,
-    required String currency,
-  }) async {
-    // Fetch Access Token
-    var res = await http.post(
-      Uri.parse('https://api-m.sandbox.paypal.com/v1/oauth2/token'),
-      headers: {'Accept': 'application/json', 'Accept-Language': 'en_US'},
-      body: {'grant_type': 'client_credentials'},
-      encoding: Encoding.getByName('utf-8'),
-    );
-    if (res.statusCode == 200) {
-      var data = jsonDecode(res.body);
-      debugPrint("PayPal token: ${data['access_token']}");
-      // Next step: create order and redirect to approval link (webview)
-    }
+    // Here you can call your local success handler or callback:
+    // PaymentSuccessHandler().onPaymentSuccess(planName);
   }
 }

@@ -19,6 +19,13 @@ class OfferPage extends StatefulWidget {
 class _OfferPageState extends State<OfferPage> {
   String _selectedCurrency = 'USD';
   bool _isMonthly = true;
+  Duration _remaining = Duration.zero;
+  Timer? _timer;
+  DateTime? _endTime;
+
+  static const Duration _offerDuration = Duration(hours: 5, minutes: 30);
+  static const Duration _resetWindow = Duration(hours: 24);
+
   final List<String> currencies = [
     'USD',
     'EUR',
@@ -28,13 +35,6 @@ class _OfferPageState extends State<OfferPage> {
     'CAD',
     'JPY'
   ];
-
-  Duration _remaining = Duration.zero;
-  Timer? _timer;
-  DateTime? _endTime;
-
-  static const Duration _offerDuration = Duration(hours: 5, minutes: 30);
-  static const Duration _resetWindow = Duration(hours: 24);
 
   final PaymentService _paymentService = PaymentService();
 
@@ -149,39 +149,8 @@ class _OfferPageState extends State<OfferPage> {
   Widget build(BuildContext context) {
     final currencyData = priceMap[_selectedCurrency]!;
     final symbol = _currencySymbol(_selectedCurrency);
-    final proMonthly = currencyData['pro']!.toDouble();
-    final unlimitedMonthly = currencyData['unlimited']!.toDouble();
-
-    // Compute displayed prices based on monthly/annual toggle
-    String proOldPrice, proNewPrice, proSuffix, proBuyLabel;
-    String unOldPrice, unNewPrice, unSuffix, unBuyLabel;
-
-    if (_isMonthly) {
-      proOldPrice = _formatPrice(proMonthly * 1.25, symbol);
-      proNewPrice = _formatPrice(proMonthly, symbol);
-      proSuffix = ' / month';
-      proBuyLabel = 'Buy Monthly';
-
-      unOldPrice = _formatPrice(unlimitedMonthly * 1.25, symbol);
-      unNewPrice = _formatPrice(unlimitedMonthly, symbol);
-      unSuffix = ' / month';
-      unBuyLabel = 'Buy Monthly';
-    } else {
-      final proYearTotal = proMonthly * 10;
-      final unYearTotal = unlimitedMonthly * 10;
-      final proApproxPerMonth = proYearTotal / 12;
-      final unApproxPerMonth = unYearTotal / 12;
-
-      proOldPrice = _formatPrice(proMonthly * 12 * 1.25, symbol);
-      proNewPrice = _formatPrice(proYearTotal, symbol);
-      proSuffix = ' / year (≈ ${_formatPrice(proApproxPerMonth, symbol)}/mo)';
-      proBuyLabel = 'Buy Yearly';
-
-      unOldPrice = _formatPrice(unlimitedMonthly * 12 * 1.25, symbol);
-      unNewPrice = _formatPrice(unYearTotal, symbol);
-      unSuffix = ' / year (≈ ${_formatPrice(unApproxPerMonth, symbol)}/mo)';
-      unBuyLabel = 'Buy Yearly';
-    }
+    final pro = currencyData['pro']!.toDouble();
+    final unlimited = currencyData['unlimited']!.toDouble();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFF),
@@ -236,46 +205,9 @@ class _OfferPageState extends State<OfferPage> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _buildOfferCard(
-                          title: "HIX AI Unlimited",
-                          oldPrice: unOldPrice,
-                          newPrice: unNewPrice,
-                          suffix: unSuffix,
-                          highlightColor: Colors.pinkAccent,
-                          buyLabel: unBuyLabel,
-                          features: const [
-                            "Unlimited access to GPT-5, Gemini 2.5, DeepSeek-R1, Claude 3.5",
-                            "Deep Research & AI Video Tools",
-                            "Unlimited Chatbot Library, ScholarChat, ChatPDF, Web Chat",
-                            "Test newest features, Priority support"
-                          ],
-                        ).animate().fadeIn(duration: 600.ms, delay: 200.ms),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _buildOfferCard(
-                          title: "HIX AI Pro",
-                          oldPrice: proOldPrice,
-                          newPrice: proNewPrice,
-                          suffix: proSuffix,
-                          highlightColor: Colors.blueAccent,
-                          buyLabel: proBuyLabel,
-                          features: const [
-                            "Access to GPT-5, Gemini 2.5, DeepSeek-R1, Claude 3.5",
-                            "AI Image, Text, and Video Tools",
-                            "Chatbot Library, ChatPDF, Web Chat",
-                            "Test newest features, Priority support"
-                          ],
-                        ).animate().fadeIn(duration: 600.ms, delay: 400.ms),
-                      ),
-                    ],
-                  ),
+                  _buildOfferRow(symbol, pro, unlimited),
                   const SizedBox(height: 30),
-                  const Text("Secure Payments by PayPal • Cancel Anytime",
+                  const Text("Secure Payments • Cancel Anytime",
                       style: TextStyle(color: Colors.grey, fontSize: 13)),
                   const SizedBox(height: 40),
                 ],
@@ -292,6 +224,7 @@ class _OfferPageState extends State<OfferPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        // Currency dropdown
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
@@ -309,6 +242,7 @@ class _OfferPageState extends State<OfferPage> {
           ),
         ),
         const SizedBox(width: 12),
+        // Monthly / Annual toggle
         Container(
           decoration: BoxDecoration(
               color: Colors.white,
@@ -320,7 +254,7 @@ class _OfferPageState extends State<OfferPage> {
           ]),
         ),
         const SizedBox(width: 8),
-        const Text("Save up to 50%",
+        const Text("Save 50%",
             style: TextStyle(color: Colors.green, fontWeight: FontWeight.w600)),
       ],
     );
@@ -342,37 +276,51 @@ class _OfferPageState extends State<OfferPage> {
     );
   }
 
-  // ---------------- OFFER CARD ----------------
+  // ---------------- OFFER CARDS ----------------
+  Widget _buildOfferRow(String symbol, double pro, double unlimited) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _buildOfferCard(
+            title: "HIX AI Unlimited",
+            price: _isMonthly ? unlimited : unlimited * 10,
+            highlightColor: Colors.pinkAccent,
+            plan: "Unlimited",
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildOfferCard(
+            title: "HIX AI Pro",
+            price: _isMonthly ? pro : pro * 10,
+            highlightColor: Colors.blueAccent,
+            plan: "Pro",
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildOfferCard({
     required String title,
-    required String oldPrice,
-    required String newPrice,
-    required String suffix,
+    required double price,
     required Color highlightColor,
-    required String buyLabel,
-    required List<String> features,
+    required String plan,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-            colors: [Colors.white, Colors.grey.shade50],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: const [
           BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))
         ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-                color: highlightColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(6)),
-            child: Text("🔥 Flash Sale",
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, color: highlightColor))),
+        Text("🔥 Flash Sale",
+            style:
+                TextStyle(fontWeight: FontWeight.bold, color: highlightColor)),
         const SizedBox(height: 12),
         Text(title,
             style: TextStyle(
@@ -380,19 +328,11 @@ class _OfferPageState extends State<OfferPage> {
                 fontWeight: FontWeight.bold,
                 color: highlightColor)),
         const SizedBox(height: 8),
-        Row(children: [
-          Text(oldPrice,
-              style: const TextStyle(
-                  color: Colors.grey, decoration: TextDecoration.lineThrough)),
-          const SizedBox(width: 8),
-          Text(newPrice,
-              style:
-                  const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(width: 6),
-          Expanded(
-              child: Text(suffix,
-                  style: const TextStyle(fontSize: 13, color: Colors.black54))),
-        ]),
+        Text(
+          "${_currencySymbol(_selectedCurrency)}${price.toStringAsFixed(2)}"
+          "${_isMonthly ? '/mo' : '/yr'}",
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 12),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
@@ -400,36 +340,16 @@ class _OfferPageState extends State<OfferPage> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
               minimumSize: const Size(double.infinity, 45)),
-          onPressed: () => _showPaymentOptions(
-              context,
-              title,
-              double.parse(newPrice.replaceAll(RegExp(r'[^0-9.]'), '')),
-              _selectedCurrency),
-          child: Text(buyLabel, style: const TextStyle(color: Colors.white)),
+          onPressed: () =>
+              _showPaymentOptions(context, plan, price, _selectedCurrency),
+          child: Text("Buy ${_isMonthly ? 'Monthly' : 'Yearly'}",
+              style: const TextStyle(color: Colors.white)),
         ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.payment, color: Colors.blue),
-            label: const Text("Pay with PayPal")),
-        const Divider(height: 24),
-        const Text("Features:",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 8),
-        ...features.map((f) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.check_circle, color: Colors.green, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                  child: Text(f,
-                      style: const TextStyle(fontSize: 14, height: 1.4)))
-            ]))),
       ]),
     );
   }
 
-  // ---------------- PAYMENT MODAL ----------------
+  // ---------------- PAYMENT LOGIC ----------------
   void _showPaymentOptions(
       BuildContext context, String plan, double price, String currency) {
     showModalBottomSheet(
@@ -438,23 +358,56 @@ class _OfferPageState extends State<OfferPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+        return SafeArea(
+          child: Wrap(
             children: [
-              const Text("Choose Payment Method",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              _buildPaymentOption(context, "💜 Razorpay",
-                  () => _payWithRazorpay(plan, price, currency)),
-              _buildPaymentOption(
-                  context, "🟣 Stripe", () => _payWithStripe(price, currency)),
-              _buildPaymentOption(
-                  context, "🟢 Google Pay (UPI)", () => _payWithGPay(price)),
-              _buildPaymentOption(
-                  context, "🔵 PayPal", () => _payWithPayPal(price, currency)),
+              // 💜 Razorpay
+              ListTile(
+                title: const Text("💜 Razorpay"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _payWithRazorpay(plan, price);
+                },
+              ),
+
+              // 🟣 Stripe
+              ListTile(
+                title: const Text("🟣 Stripe"),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _paymentService.startStripePayment(
+                    planName: plan,
+                    amount: price.toStringAsFixed(2),
+                    context: context,
+                  );
+                },
+              ),
+
+              // 🟢 UPI / Google Pay
+              ListTile(
+                title: const Text("🟢 Google Pay / UPI"),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _paymentService.startUPIPayment(
+                    name: plan,
+                    upiId: 'yourupiid@okaxis',
+                    amount: price.toStringAsFixed(2),
+                  );
+                },
+              ),
+
+              // 🧪 Test Mode
+              ListTile(
+                title: const Text("🧪 Test Payment"),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _paymentService.startTestPayment(
+                    context: context,
+                    planName: plan,
+                    amount: price.toStringAsFixed(2),
+                  );
+                },
+              ),
             ],
           ),
         );
@@ -462,67 +415,44 @@ class _OfferPageState extends State<OfferPage> {
     );
   }
 
-  Widget _buildPaymentOption(
-      BuildContext context, String label, VoidCallback onTap) {
-    return ListTile(
-      title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-      onTap: () {
-        Navigator.pop(context);
-        onTap();
-      },
-    );
-  }
-
-  // ---------------- PAYMENT METHODS ----------------
-  void _payWithRazorpay(String plan, double price, String currency) {
+  void _payWithRazorpay(String plan, double price) {
     _paymentService.initRazorpay(
-      onSuccess: (id) => _showSuccess(context, "Razorpay", id),
-      onError: (err) => _showError(context, err),
+      onSuccess: () => _showSuccess(context, "Razorpay", "1234567890"),
+      onFailure: () => _showError(context, "Payment failed"),
     );
-    _paymentService.startRazorpay(
-        name: plan, amount: price, email: "user@test.com");
-  }
 
-  void _payWithStripe(double price, String currency) async {
-    await _paymentService.startStripePayment(
-        amount: price.toStringAsFixed(2), currency: currency);
-  }
-
-  void _payWithGPay(double price) async {
-    await _paymentService.startUpiPayment(
-        amount: price, receiverUpiId: "yourupiid@okaxis", name: "SkillSwap");
-  }
-
-  void _payWithPayPal(double price, String currency) async {
-    await _paymentService.startPayPal(
-        clientId: "YOUR_PAYPAL_CLIENT_ID",
-        secret: "YOUR_PAYPAL_SECRET",
-        amount: price,
-        currency: currency);
+    _paymentService.startRazorpayPayment(
+      amount: price,
+      email: "user@test.com",
+      planName: plan,
+    );
   }
 
   void _showSuccess(BuildContext context, String gateway, String id) {
     Navigator.push(
-        context,
-        AnimatedPageRoute(
-            page: PaymentSuccessScreen(
+      context,
+      AnimatedPageRoute(
+        page: PaymentSuccessScreen(
           gateway: gateway,
           transactionId: id,
           amount: 0.0,
           currency: _selectedCurrency,
           onContinue: () => Navigator.pop(context),
-        )));
+        ),
+      ),
+    );
   }
 
   void _showError(BuildContext context, String error) {
     Navigator.push(
-        context,
-        AnimatedPageRoute(
-            page: PaymentFailedScreen(
+      context,
+      AnimatedPageRoute(
+        page: PaymentFailedScreen(
           gateway: "Unknown",
           errorMessage: error,
           onRetry: () => Navigator.pop(context),
-        )));
+        ),
+      ),
+    );
   }
 }

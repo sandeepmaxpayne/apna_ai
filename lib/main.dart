@@ -7,11 +7,13 @@ import 'package:apna_ai/screens/specs_page.dart';
 import 'package:apna_ai/services/api_service.dart';
 import 'package:apna_ai/widgets/bottom_taskbar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   runApp(const MyApp());
 }
 
@@ -25,7 +27,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   final String _selectedTier = "free";
   late ApiService _apiService;
-  String _selectedTab = "/offer";
+  String _selectedTab = "/chat";
   int _previousTabIndex = 0;
 
   final List<String> _routes = ["/chat", "/discover", "/spaces", "/library"];

@@ -32,6 +32,7 @@ dependencies:
   upi_india: ^3.0.1       # Google Pay, PhonePe, etc.
   http: ^1.5.0            # For PayPal API
   lottie: ^3.3.2
+  flutter_dotenv: ^5.1.0
 
 dev_dependencies:
   flutter_test:

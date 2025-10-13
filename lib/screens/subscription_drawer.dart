@@ -1,6 +1,8 @@
 import 'package:apna_ai/models/theme_color.dart';
 import 'package:flutter/material.dart';
 
+import '../payment/payment_service.dart'; // merged payment methods
+
 class SubscriptionDrawer extends StatefulWidget {
   final VoidCallback onClose;
   const SubscriptionDrawer({super.key, required this.onClose});
@@ -12,6 +14,7 @@ class SubscriptionDrawer extends StatefulWidget {
 class _SubscriptionDrawerState extends State<SubscriptionDrawer> {
   String _selectedPlan = "pro"; // pro or max
   String _billingCycle = "monthly"; // monthly or yearly
+  bool _testMode = true; // ✅ Sandbox/Test toggle
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +43,7 @@ class _SubscriptionDrawerState extends State<SubscriptionDrawer> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 60),
+
                     // 🌟 Title
                     const Text(
                       "Select your plan",
@@ -65,12 +69,8 @@ class _SubscriptionDrawerState extends State<SubscriptionDrawer> {
                       ),
                       child: Row(
                         children: [
-                          Expanded(
-                            child: _buildToggleButton("pro", "Pro"),
-                          ),
-                          Expanded(
-                            child: _buildToggleButton("max", "Max"),
-                          ),
+                          Expanded(child: _buildToggleButton("pro", "Pro")),
+                          Expanded(child: _buildToggleButton("max", "Max")),
                         ],
                       ),
                     ),
@@ -99,11 +99,7 @@ class _SubscriptionDrawerState extends State<SubscriptionDrawer> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         _buildBillingOption(
-                          "Monthly",
-                          "₹1,950.00",
-                          "per month",
-                          "monthly",
-                        ),
+                            "Monthly", "₹1,950.00", "per month", "monthly"),
                         const SizedBox(width: 12),
                         _buildBillingOption(
                           "Yearly",
@@ -115,13 +111,40 @@ class _SubscriptionDrawerState extends State<SubscriptionDrawer> {
                       ],
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
+
+                    // 🧪 Test Mode toggle
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.science_outlined,
+                            color: Colors.black54, size: 20),
+                        const SizedBox(width: 8),
+                        const Text("Test Mode",
+                            style:
+                                TextStyle(color: Colors.black87, fontSize: 15)),
+                        const SizedBox(width: 10),
+                        Switch(
+                          value: _testMode,
+                          onChanged: (val) => setState(() => _testMode = val),
+                          activeColor: AppColors.primary,
+                        ),
+                        Text(
+                          _testMode ? "ON" : "OFF",
+                          style: TextStyle(
+                            color:
+                                _testMode ? AppColors.primary : Colors.black45,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
 
                     // 🔵 Subscribe Button
                     GestureDetector(
-                      onTap: () {
-                        // Handle purchase logic here
-                      },
+                      onTap: _handleSubscribe,
                       child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -129,10 +152,10 @@ class _SubscriptionDrawerState extends State<SubscriptionDrawer> {
                           color: AppColors.primary,
                           borderRadius: BorderRadius.circular(40),
                         ),
-                        child: const Center(
+                        child: Center(
                           child: Text(
-                            "Get Pro",
-                            style: TextStyle(
+                            _selectedPlan == "pro" ? "Get Pro" : "Get Max",
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
@@ -181,8 +204,12 @@ class _SubscriptionDrawerState extends State<SubscriptionDrawer> {
 
   // 💳 Billing Option (Monthly / Yearly)
   Widget _buildBillingOption(
-      String title, String price, String subtitle, String value,
-      {String? badge}) {
+    String title,
+    String price,
+    String subtitle,
+    String value, {
+    String? badge,
+  }) {
     final selected = _billingCycle == value;
     return Expanded(
       child: GestureDetector(
@@ -227,15 +254,19 @@ class _SubscriptionDrawerState extends State<SubscriptionDrawer> {
                 ),
               ),
               const SizedBox(height: 6),
-              Text(price,
-                  style: TextStyle(
-                    color: selected ? AppColors.primary : Colors.black87,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  )),
+              Text(
+                price,
+                style: TextStyle(
+                  color: selected ? AppColors.primary : Colors.black87,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 4),
-              Text(subtitle,
-                  style: const TextStyle(color: Colors.black54, fontSize: 12)),
+              Text(
+                subtitle,
+                style: const TextStyle(color: Colors.black54, fontSize: 12),
+              ),
             ],
           ),
         ),
@@ -260,5 +291,41 @@ class _SubscriptionDrawerState extends State<SubscriptionDrawer> {
         ],
       ),
     );
+  }
+
+  // 🚀 Handle payment logic
+  Future<void> _handleSubscribe() async {
+    final double amount = _billingCycle == "yearly" ? 19600.0 : 1950.0;
+
+    // Create instance of PaymentService
+    final paymentService = PaymentService();
+
+    try {
+      if (_testMode) {
+        // 🧪 Test mode - no real payment
+        await paymentService.startTestPayment(
+          context: context,
+          planName: _selectedPlan,
+          amount: amount.toString(),
+        );
+        debugPrint("✅ Test Payment successful");
+      } else {
+        // 💳 Live mode (Stripe / Razorpay / etc.)
+        await paymentService.startStripePayment(
+          planName: _selectedPlan,
+          amount: amount.toString(),
+          context: context,
+        );
+        debugPrint("✅ Live Payment successful");
+      }
+    } catch (e) {
+      debugPrint("❌ Payment Failed: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Payment failed: $e"),
+          backgroundColor: Colors.red.shade400,
+        ),
+      );
+    }
   }
 }

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:apna_ai/models/format_message.dart';
-import 'package:apna_ai/screens/subscription_screen.dart';
+import 'package:apna_ai/screens/subscription_drawer.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
