@@ -1,7 +1,7 @@
 import 'package:apna_ai/models/theme_color.dart';
 import 'package:apna_ai/offer/offer_screen.dart';
 import 'package:apna_ai/screens/chat_screen.dart';
-import 'package:apna_ai/screens/discover_page.dart';
+import 'package:apna_ai/screens/discover_screen.dart';
 import 'package:apna_ai/screens/library_screen.dart';
 import 'package:apna_ai/screens/specs_page.dart';
 import 'package:apna_ai/services/api_service.dart';
