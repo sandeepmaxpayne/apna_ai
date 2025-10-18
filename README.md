@@ -1,15 +1,23 @@
-# apna_ai
+# Apna AI
 
-Personal AI assistant guide
+A Personal AI Assistant
 
-## Getting Started
+## Future Features
 
-- To Do
-- Implement music recognition and give redirect to spotify or jio savaan
-- image upload service
-- Also start with new chat option, when error has occurred disable send button
+- Implement music recognition with redirection to Spotify or JioSaavn.
+- Add an image upload service.
+- Add a "New Chat" option.
+- Disable the send button when an error occurs.
+- Integrate real payment options.
+- Implement audio recognition.
+- Integrate Firebase authentication for user login.
+- Create community groups for interaction between users, bots, and agents.
 
-# To be fixed:
-- Error while trying to load an asset: Flutter Web engine failed to fetch "assets/assets/robot_tired.png". HTTP request succeeded, but the server responded with HTTP status 404.
-- Could not find a set of Noto fonts to display all missing characters. Please add a font asset for the missing characters.
-- Link to real payment options - TODO
+## Known Issues
+
+- Fix asset loading error for `assets/assets/robot_tired.png` (HTTP 404).
+- Add missing Noto font assets to correctly display all characters.
+
+## Features Added
+
+- Added Discovery options for various categories: Stories, Tech, Finance, Art, Sport, and Entertainment.
